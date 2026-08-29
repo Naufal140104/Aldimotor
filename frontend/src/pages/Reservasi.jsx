@@ -79,6 +79,8 @@ export default function Reservasi() {
   const [confirm, setConfirm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState(null);
+  const [plateHistory, setPlateHistory] = useState(null);
+  const [checkingPlate, setCheckingPlate] = useState(false);
 
   useEffect(() => {
     api.get("/services").then((r) => setServices(r.data)).catch(() => toast.error("Gagal memuat layanan"));
@@ -125,6 +127,20 @@ export default function Reservasi() {
     if (!customer.complaint.trim()) e.complaint = "Keluhan wajib diisi";
     setErrors(e);
     return Object.keys(e).length === 0;
+  };
+
+  const fetchPlateHistory = async (plateRaw) => {
+    const plate = plateRaw.toUpperCase().trim();
+    if (plate.length < 3) { setPlateHistory(null); return; }
+    setCheckingPlate(true);
+    try {
+      const r = await api.get(`/customer/history?plate=${encodeURIComponent(plate)}`);
+      setPlateHistory(r.data.count > 0 ? r.data : null);
+    } catch (_) {
+      setPlateHistory(null);
+    } finally {
+      setCheckingPlate(false);
+    }
   };
 
   const submitBooking = async () => {
@@ -363,6 +379,7 @@ export default function Reservasi() {
                     id="plate" data-testid="input-plate"
                     value={customer.plate_number}
                     onChange={(e) => setCustomer({ ...customer, plate_number: e.target.value.toUpperCase() })}
+                    onBlur={(e) => fetchPlateHistory(e.target.value)}
                     className="mt-2 uppercase" placeholder="DD 1234 XX"
                   />
                   {errors.plate_number && <p className="mt-1 text-xs text-red-600">{errors.plate_number}</p>}
@@ -380,6 +397,43 @@ export default function Reservasi() {
                 {errors.complaint && <p className="mt-1 text-xs text-red-600">{errors.complaint}</p>}
               </div>
             </Card>
+
+            {/* Plate history */}
+            {(checkingPlate || plateHistory) && (
+              <Card className="mt-4 border-blue-200 bg-blue-50 p-5" data-testid="plate-history-card">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-white">
+                    <Wrench strokeWidth={2} className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <div className="font-display text-sm font-semibold">
+                      {checkingPlate ? "Memeriksa riwayat motor…" : `Motor ini pernah servis di sini`}
+                    </div>
+                    {plateHistory && (
+                      <div className="text-xs text-slate-600">
+                        {plateHistory.count} kali kunjungan sebelumnya — {plateHistory.plate_number}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                {plateHistory && (
+                  <div className="mt-4 space-y-2">
+                    {plateHistory.recent.map((h) => (
+                      <div key={h.booking_number} className="rounded-md border border-blue-100 bg-white p-3 text-sm">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="font-medium text-blue-700">{h.booking_number}</div>
+                          <div className="text-xs text-slate-500">{h.booking_date} · {h.start_time}</div>
+                        </div>
+                        <div className="mt-1 text-slate-700">
+                          <span className="font-medium">{h.service_name}</span> · {h.mechanic_name} · <span className="text-slate-500">{h.status}</span>
+                        </div>
+                        <div className="mt-1 text-xs text-slate-500 italic">Keluhan: "{h.complaint}"</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+            )}
             <div className="mt-8 flex justify-between">
               <Button variant="ghost" onClick={() => setStep(2)}><ChevronLeft className="mr-1 h-4 w-4" /> Kembali</Button>
               <Button

@@ -267,6 +267,30 @@ async def list_holidays():
     return docs
 
 
+# ----------------- Customer plate history (public, minimal fields) -----------------
+@api.get("/customer/history")
+async def customer_history(plate: str = Query(..., min_length=3)):
+    plate_up = plate.upper().strip()
+    docs = await db.bookings.find(
+        {"plate_number": plate_up},
+        {"_id": 0, "whatsapp": 0, "customer_id": 0},
+    ).to_list(50)
+    docs.sort(key=lambda x: (x["booking_date"], x["start_time"]), reverse=True)
+    # Return only last 5, minimal fields for privacy
+    result = []
+    for b in docs[:5]:
+        result.append({
+            "booking_number": b["booking_number"],
+            "booking_date": b["booking_date"],
+            "start_time": b["start_time"],
+            "service_name": b["service_name"],
+            "mechanic_name": b["mechanic_name"],
+            "complaint": b["complaint"],
+            "status": b["status"],
+        })
+    return {"plate_number": plate_up, "count": len(docs), "recent": result}
+
+
 # ----------------- Availability -----------------
 def parse_hhmm(s: str) -> time:
     h, m = s.split(":")
@@ -487,6 +511,84 @@ async def create_booking(body: BookingCreate):
     }
 
 
+# ----------------- Admin Calendar -----------------
+@api.get("/admin/calendar/day")
+async def calendar_day(date_str: str = Query(..., alias="date"), user: dict = Depends(get_current_user)):
+    try:
+        d = datetime.strptime(date_str, "%Y-%m-%d").date()
+    except Exception:
+        raise HTTPException(400, "Format tanggal tidak valid")
+    bh = await db.settings.find_one({"key": "business_hours"}, {"_id": 0}) or {"opening_time": "08:00", "closing_time": "16:00"}
+    mechanics = await db.mechanics.find({}, {"_id": 0}).to_list(100)
+    mechanics.sort(key=lambda m: m.get("created_at", ""))
+    bookings = await db.bookings.find(
+        {"booking_date": date_str, "status": {"$ne": "Dibatalkan"}}, {"_id": 0}
+    ).to_list(500)
+
+    hours = hour_range(bh["opening_time"], bh["closing_time"])
+    # For each mechanic, produce a row: for each hour, either a booking-start cell (with span), a continuation cell, or empty
+    result_mechs = []
+    for m in mechanics:
+        my_bookings = [b for b in bookings if b["mechanic_id"] == m["id"]]
+        cells = []
+        i = 0
+        while i < len(hours):
+            hh = hours[i]
+            # find booking that starts here
+            b_here = next((b for b in my_bookings if b["start_time"] == hh), None)
+            if b_here:
+                span = max(1, int(round(float(b_here.get("duration_hours", 1)))))
+                cells.append({"type": "booking", "time": hh, "span": span, "booking": b_here})
+                i += span
+                continue
+            # check if this hour is covered by a running booking
+            covered = any(b["start_time"] < hh < b["end_time"] for b in my_bookings)
+            cells.append({"type": "covered" if covered else "empty", "time": hh, "span": 1})
+            i += 1
+        result_mechs.append({
+            "id": m["id"],
+            "name": m["name"],
+            "status": m.get("status", "active"),
+            "cells": cells,
+        })
+    return {"date": date_str, "hours": hours, "mechanics": result_mechs}
+
+
+@api.get("/admin/calendar/week")
+async def calendar_week(start: str = Query(...), user: dict = Depends(get_current_user)):
+    try:
+        d = datetime.strptime(start, "%Y-%m-%d").date()
+    except Exception:
+        raise HTTPException(400, "Format tanggal tidak valid")
+    days = []
+    bh = await db.settings.find_one({"key": "business_hours"}, {"_id": 0}) or {"opening_time": "08:00", "closing_time": "16:00"}
+    mechanics_count = await db.mechanics.count_documents({"status": "active"})
+    hours = hour_range(bh["opening_time"], bh["closing_time"])
+    total_cap_per_day = mechanics_count * len(hours)
+
+    for i in range(7):
+        di = d + timedelta(days=i)
+        ds = di.isoformat()
+        weekday = di.weekday()  # 0=Mon
+        is_closed_day = weekday in (bh.get("closed_days", [6]) or [6])
+        is_holiday = bool(await db.holidays.find_one({"date": ds}))
+        bookings = await db.bookings.find(
+            {"booking_date": ds, "status": {"$ne": "Dibatalkan"}}, {"_id": 0, "booking_number": 1, "start_time": 1, "duration_hours": 1, "customer_name": 1, "service_name": 1, "mechanic_name": 1, "status": 1}
+        ).to_list(500)
+        # occupied cells = sum(duration_hours) of all bookings
+        occupied = sum(int(round(float(b.get("duration_hours", 1)))) for b in bookings)
+        days.append({
+            "date": ds,
+            "weekday": weekday,
+            "is_closed": is_closed_day or is_holiday,
+            "closed_reason": ("Libur" if is_holiday else "Tutup") if (is_holiday or is_closed_day) else None,
+            "bookings_count": len(bookings),
+            "occupied_slots": occupied,
+            "capacity": 0 if (is_closed_day or is_holiday) else total_cap_per_day,
+        })
+    return {"start": start, "days": days}
+
+
 # ----------------- Admin -----------------
 @api.get("/admin/bookings")
 async def admin_bookings(
@@ -494,6 +596,7 @@ async def admin_bookings(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
     status: Optional[str] = None,
+    plate: Optional[str] = None,
 ):
     q = {}
     if date_from or date_to:
@@ -504,6 +607,8 @@ async def admin_bookings(
             q["booking_date"]["$lte"] = date_to
     if status:
         q["status"] = status
+    if plate:
+        q["plate_number"] = plate.upper().strip()
     docs = await db.bookings.find(q, {"_id": 0}).to_list(2000)
     docs.sort(key=lambda x: (x["booking_date"], x["start_time"]))
     return docs

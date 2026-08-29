@@ -11,11 +11,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Wrench, LayoutDashboard, CalendarDays, Users2, Settings, LogOut,
   Loader2, Plus, Trash2, MessageCircle, CheckCircle2, PlayCircle, XCircle, Clock,
-  FileText, Download,
+  FileText, Download, CalendarRange, History, ChevronLeft, ChevronRight, X,
 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { format, addDays } from "date-fns";
+import { format, addDays, startOfWeek } from "date-fns";
+import { id as idLocale } from "date-fns/locale";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { API } from "@/lib/apiClient";
 
 const rupiah = (n) => "Rp " + Math.round(Number(n) || 0).toLocaleString("id-ID");
@@ -55,6 +57,7 @@ export default function Admin() {
             {[
               { id: "overview", icon: LayoutDashboard, label: "Dashboard" },
               { id: "bookings", icon: CalendarDays, label: "Reservasi" },
+              { id: "calendar", icon: CalendarRange, label: "Kalender" },
               { id: "mechanics", icon: Users2, label: "Mekanik" },
               { id: "reports", icon: FileText, label: "Laporan" },
               { id: "settings", icon: Settings, label: "Pengaturan" },
@@ -88,9 +91,10 @@ export default function Admin() {
           {/* Mobile tab bar */}
           <div className="md:hidden border-b border-slate-200 bg-white px-4 py-2">
             <Tabs value={tab} onValueChange={setTab}>
-              <TabsList className="grid w-full grid-cols-5">
+              <TabsList className="grid w-full grid-cols-6">
                 <TabsTrigger value="overview">Home</TabsTrigger>
                 <TabsTrigger value="bookings">Reservasi</TabsTrigger>
+                <TabsTrigger value="calendar">Kalender</TabsTrigger>
                 <TabsTrigger value="mechanics">Mekanik</TabsTrigger>
                 <TabsTrigger value="reports">Laporan</TabsTrigger>
                 <TabsTrigger value="settings">Setting</TabsTrigger>
@@ -101,6 +105,7 @@ export default function Admin() {
           <div className="p-6">
             {tab === "overview" && <Overview />}
             {tab === "bookings" && <Bookings />}
+            {tab === "calendar" && <CalendarView />}
             {tab === "mechanics" && <Mechanics />}
             {tab === "reports" && <Reports />}
             {tab === "settings" && <SettingsPanel />}
@@ -147,7 +152,9 @@ function Bookings() {
   const [loading, setLoading] = useState(true);
   const [dateFilter, setDateFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [plateFilter, setPlateFilter] = useState("");
   const [mechanics, setMechanics] = useState([]);
+  const [historyPlate, setHistoryPlate] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -155,13 +162,14 @@ function Bookings() {
       const params = new URLSearchParams();
       if (dateFilter) { params.set("date_from", dateFilter); params.set("date_to", dateFilter); }
       if (statusFilter !== "all") params.set("status", statusFilter);
+      if (plateFilter.trim()) params.set("plate", plateFilter.trim().toUpperCase());
       const r = await api.get(`/admin/bookings?${params.toString()}`);
       setItems(r.data);
     } catch (e) { toast.error(formatApiError(e)); }
     setLoading(false);
   };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { load(); api.get("/mechanics").then((r) => setMechanics(r.data)); }, [dateFilter, statusFilter]);
+  useEffect(() => { load(); api.get("/mechanics").then((r) => setMechanics(r.data)); }, [dateFilter, statusFilter, plateFilter]);
 
   const updateStatus = async (id, status) => {
     try {
@@ -209,7 +217,11 @@ function Bookings() {
             </SelectContent>
           </Select>
         </div>
-        <Button variant="outline" size="sm" onClick={() => { setDateFilter(""); setStatusFilter("all"); }}>Reset</Button>
+        <div>
+          <Label className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">No Polisi</Label>
+          <Input placeholder="DD 1234 XX" value={plateFilter} onChange={(e) => setPlateFilter(e.target.value)} className="mt-2 w-40 uppercase" data-testid="filter-plate" />
+        </div>
+        <Button variant="outline" size="sm" onClick={() => { setDateFilter(""); setStatusFilter("all"); setPlateFilter(""); }}>Reset</Button>
       </div>
 
       {loading ? <Loader /> : items.length === 0 ? (
@@ -311,13 +323,73 @@ function Bookings() {
                   <a href={`https://wa.me/${b.whatsapp}`} target="_blank" rel="noreferrer">
                     <Button variant="outline" size="icon" data-testid={`wa-btn-${b.booking_number}`}><MessageCircle className="h-4 w-4" /></Button>
                   </a>
+                  <Button
+                    variant="outline" size="icon" title="Lihat riwayat plat ini"
+                    onClick={() => setHistoryPlate(b.plate_number)}
+                    data-testid={`history-btn-${b.booking_number}`}
+                  >
+                    <History className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
             </Card>
           ))}
         </div>
       )}
+
+      {/* Plate history dialog */}
+      <PlateHistoryDialog plate={historyPlate} onClose={() => setHistoryPlate(null)} />
     </div>
+  );
+}
+
+function PlateHistoryDialog({ plate, onClose }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    if (!plate) return;
+    setLoading(true);
+    api.get(`/customer/history?plate=${encodeURIComponent(plate)}`)
+      .then((r) => setData(r.data))
+      .catch(() => setData(null))
+      .finally(() => setLoading(false));
+  }, [plate]);
+  return (
+    <Dialog open={!!plate} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-2xl" data-testid="plate-history-dialog">
+        <DialogHeader>
+          <DialogTitle className="font-display text-xl">Riwayat Servis Motor</DialogTitle>
+          {plate && <div className="text-sm text-slate-500">Plat: <span className="font-semibold text-blue-600">{plate}</span></div>}
+        </DialogHeader>
+        {loading ? <Loader /> : (
+          <div className="max-h-[60vh] overflow-y-auto space-y-2">
+            {(!data || data.count === 0) && (
+              <div className="rounded-md border border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
+                Belum ada riwayat servis untuk plat ini.
+              </div>
+            )}
+            {data && data.count > 0 && (
+              <>
+                <div className="text-xs text-slate-500">Total {data.count} kunjungan · menampilkan {data.recent.length} terbaru</div>
+                {data.recent.map((h) => (
+                  <div key={h.booking_number} className="rounded-md border border-slate-200 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="font-medium text-blue-700">{h.booking_number}</div>
+                      <Badge className={statusColor[h.status]}>{h.status}</Badge>
+                    </div>
+                    <div className="mt-1 text-sm">
+                      <span className="font-medium">{h.service_name}</span> · {h.mechanic_name}
+                    </div>
+                    <div className="mt-1 text-xs text-slate-500">{h.booking_date} · {h.start_time}</div>
+                    <div className="mt-2 text-sm italic text-slate-700">"{h.complaint}"</div>
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -490,6 +562,215 @@ function SettingsPanel() {
     </div>
   );
 }
+
+function CalendarView() {
+  const [view, setView] = useState("day"); // day | week
+  const [date, setDate] = useState(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  });
+  const [dayData, setDayData] = useState(null);
+  const [weekData, setWeekData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [selectedBooking, setSelectedBooking] = useState(null);
+
+  const loadDay = async (d) => {
+    setLoading(true);
+    try {
+      const r = await api.get(`/admin/calendar/day?date=${format(d, "yyyy-MM-dd")}`);
+      setDayData(r.data);
+    } catch (e) { toast.error(formatApiError(e)); }
+    setLoading(false);
+  };
+  const loadWeek = async (d) => {
+    setLoading(true);
+    try {
+      const start = startOfWeek(d, { weekStartsOn: 1 });
+      const r = await api.get(`/admin/calendar/week?start=${format(start, "yyyy-MM-dd")}`);
+      setWeekData(r.data);
+    } catch (e) { toast.error(formatApiError(e)); }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    if (view === "day") loadDay(date); else loadWeek(date);
+    // eslint-disable-next-line
+  }, [view, date]);
+
+  const shiftDays = (n) => setDate(addDays(date, n));
+
+  return (
+    <div className="space-y-6" data-testid="admin-calendar">
+      <Card className="border-slate-200 p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">Kalender Reservasi</div>
+            <h3 className="mt-1 font-display text-2xl font-semibold">
+              {view === "day"
+                ? format(date, "EEEE, dd MMMM yyyy", { locale: idLocale })
+                : `Minggu ${format(startOfWeek(date, { weekStartsOn: 1 }), "dd MMM", { locale: idLocale })} – ${format(addDays(startOfWeek(date, { weekStartsOn: 1 }), 6), "dd MMM yyyy", { locale: idLocale })}`}
+            </h3>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Tabs value={view} onValueChange={setView}>
+              <TabsList>
+                <TabsTrigger value="day" data-testid="cal-view-day">Harian</TabsTrigger>
+                <TabsTrigger value="week" data-testid="cal-view-week">Mingguan</TabsTrigger>
+              </TabsList>
+            </Tabs>
+            <Button variant="outline" size="icon" onClick={() => shiftDays(view === "day" ? -1 : -7)} data-testid="cal-prev">
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => {
+              const d = new Date(); d.setHours(0, 0, 0, 0); setDate(d);
+            }} data-testid="cal-today">Hari Ini</Button>
+            <Button variant="outline" size="icon" onClick={() => shiftDays(view === "day" ? 1 : 7)} data-testid="cal-next">
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </Card>
+
+      {loading && <Loader />}
+
+      {!loading && view === "day" && dayData && (
+        <Card className="border-slate-200 p-4 overflow-x-auto" data-testid="cal-day-grid">
+          <table className="w-full min-w-[720px] border-collapse">
+            <thead>
+              <tr>
+                <th className="w-24 border-b border-slate-200 p-2 text-left text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Mekanik
+                </th>
+                {dayData.hours.map((h) => (
+                  <th key={h} className="border-b border-slate-200 p-2 text-center text-xs font-bold uppercase tracking-wider text-slate-500">
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {dayData.mechanics.map((m) => (
+                <tr key={m.id} className={m.status === "inactive" ? "opacity-40" : ""}>
+                  <td className="border-b border-slate-100 p-2 align-top">
+                    <div className="font-medium text-sm">{m.name}</div>
+                    {m.status === "inactive" && <div className="text-xs text-slate-400">nonaktif</div>}
+                  </td>
+                  {m.cells.map((cell, i) => {
+                    if (cell.type === "covered") return null;
+                    if (cell.type === "empty") {
+                      return (
+                        <td key={i} className="border-b border-slate-100 p-1">
+                          <div className="h-14 rounded-md border border-dashed border-slate-200 bg-slate-50/60" />
+                        </td>
+                      );
+                    }
+                    // booking cell
+                    const b = cell.booking;
+                    const colors = statusCellColor[b.status] || "bg-blue-100 border-blue-300 text-blue-900";
+                    return (
+                      <td key={i} colSpan={cell.span} className="border-b border-slate-100 p-1">
+                        <button
+                          onClick={() => setSelectedBooking(b)}
+                          data-testid={`cal-cell-${b.booking_number}`}
+                          className={`h-14 w-full rounded-md border-2 ${colors} p-1.5 text-left transition-transform hover:scale-[1.02]`}
+                        >
+                          <div className="text-[10px] font-bold uppercase tracking-wider truncate">{b.booking_number}</div>
+                          <div className="text-xs font-semibold truncate">{b.customer_name}</div>
+                          <div className="text-[10px] truncate">{b.service_name}</div>
+                        </button>
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {dayData.mechanics.length === 0 && (
+            <div className="p-8 text-center text-sm text-slate-500">Tidak ada mekanik terdaftar.</div>
+          )}
+        </Card>
+      )}
+
+      {!loading && view === "week" && weekData && (
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-7" data-testid="cal-week-grid">
+          {weekData.days.map((d) => {
+            const dt = new Date(d.date + "T00:00:00");
+            const isClosed = d.is_closed;
+            const filled = d.capacity > 0 ? Math.round((d.occupied_slots / d.capacity) * 100) : 0;
+            let dens = "bg-emerald-50 border-emerald-200 text-emerald-800";
+            if (filled >= 70) dens = "bg-red-50 border-red-200 text-red-800";
+            else if (filled >= 40) dens = "bg-amber-50 border-amber-200 text-amber-800";
+            if (isClosed) dens = "bg-slate-100 border-slate-200 text-slate-500";
+            return (
+              <button
+                key={d.date}
+                onClick={() => { if (!isClosed) { setDate(dt); setView("day"); } }}
+                data-testid={`cal-week-day-${d.date}`}
+                disabled={isClosed}
+                className={`rounded-lg border-2 p-3 text-left transition-transform hover:-translate-y-0.5 ${dens} ${isClosed ? "cursor-not-allowed" : "cursor-pointer"}`}
+              >
+                <div className="text-xs font-bold uppercase tracking-wider">
+                  {format(dt, "EEE", { locale: idLocale })}
+                </div>
+                <div className="mt-1 font-display text-2xl font-bold">
+                  {format(dt, "dd", { locale: idLocale })}
+                </div>
+                <div className="text-xs text-slate-500 mb-3">
+                  {format(dt, "MMM", { locale: idLocale })}
+                </div>
+                {isClosed ? (
+                  <div className="text-xs font-medium">{d.closed_reason}</div>
+                ) : (
+                  <>
+                    <div className="text-2xl font-bold">{d.bookings_count}</div>
+                    <div className="text-[10px] uppercase tracking-wider">reservasi</div>
+                    <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-white/60">
+                      <div className="h-full bg-current opacity-70" style={{ width: `${Math.min(100, filled)}%` }} />
+                    </div>
+                    <div className="mt-1 text-[10px]">{d.occupied_slots}/{d.capacity} slot ({filled}%)</div>
+                  </>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      <Dialog open={!!selectedBooking} onOpenChange={(o) => !o && setSelectedBooking(null)}>
+        <DialogContent className="max-w-md" data-testid="booking-detail-dialog">
+          <DialogHeader>
+            <DialogTitle className="font-display text-xl">
+              {selectedBooking?.booking_number}
+            </DialogTitle>
+          </DialogHeader>
+          {selectedBooking && (
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between"><span className="text-slate-500">Customer</span><span className="font-medium">{selectedBooking.customer_name}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Plat</span><span className="font-medium">{selectedBooking.plate_number}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Servis</span><span className="font-medium">{selectedBooking.service_name}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Jam</span><span className="font-medium">{selectedBooking.start_time}–{selectedBooking.end_time}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Mekanik</span><span className="font-medium">{selectedBooking.mechanic_name}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Status</span><Badge className={statusColor[selectedBooking.status]}>{selectedBooking.status}</Badge></div>
+              <div className="pt-2">
+                <div className="text-slate-500 text-xs uppercase tracking-wider mb-1">Keluhan</div>
+                <div className="italic">"{selectedBooking.complaint}"</div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+const statusCellColor = {
+  "Menunggu Konfirmasi": "bg-amber-100 border-amber-300 text-amber-900",
+  "Dikonfirmasi": "bg-blue-100 border-blue-300 text-blue-900",
+  "Sedang Diproses": "bg-purple-100 border-purple-300 text-purple-900",
+  "Selesai": "bg-green-100 border-green-300 text-green-900",
+  "Dibatalkan": "bg-slate-100 border-slate-300 text-slate-500",
+};
 
 function Reports() {
   const now = new Date();

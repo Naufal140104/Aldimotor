@@ -1,0 +1,34 @@
+{
+  "summary": "Tested new features: (1) Public plate history API, (2) Admin calendar day+week APIs, (3) Admin bookings plate filter, (4) Admin Calendar UI (day/week toggle, prev/next/today, week-day click switches to day, booking cell opens detail dialog), (5) Admin Bookings plate filter + PlateHistoryDialog opens on history icon click. Backend pytest: 15/15 passed. Frontend admin flows verified via Playwright. Reservasi Step-3 plate-history-card was not fully verified end-to-end (blocked at Step 2 date picker popover interaction in automation), but the code path and underlying API were verified separately.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_calendar_and_history.py",
+    "/app/test_reports/pytest/calendar_history.xml"
+  ],
+  "action_items": [
+    "(Optional) In CalendarView, current-view 'Today' defaults to the browser's real-world date (2026-01-XX in current environment). Server date is 2026-08-29, so 'Hari Ini' shows an empty calendar until user navigates ~7 months forward. Consider using a server-provided reference date or extending the bookable window bound consistency; not blocking.",
+    "(Optional) In Reservasi Step 3, fetchPlateHistory triggers on onBlur only. Consider also triggering on debounced onChange (once length>=3) so the history card appears without requiring the user to tab out; UX nice-to-have.",
+    "(Optional) plate-history-dialog title just says 'Riwayat Servis Motor'; the plate is shown in subheader. Accessible name should include plate for screen readers."
+  ],
+  "critical_code_review_comments": [
+    "customer_history endpoint correctly excludes whatsapp/customer_name/customer_id — verified. Sort by (booking_date, start_time) desc → recent[0] is latest; good.",
+    "calendar_day cells: booking cell has span=duration_hours and the loop skips the covered hours (i += span), so subsequent hours won't emit a separate cell — verified with Sep 2 Servis Berat 2h at 08:00 (no 09:00 cell emitted). This means the 'covered' type is only produced for hours covered by bookings that started BEFORE the current mechanic loop iteration — which cannot happen since we always increment by span. Effectively 'covered' branch is dead code in current flow; harmless but noteworthy.",
+    "calendar_week counts bookings only where status != 'Dibatalkan'. Capacity computes across active mechanics only — consistent.",
+    "Admin bookings plate filter properly uppercases and trims input before Mongo query — case-insensitive lookup works.",
+    "Admin.jsx CalendarView uses new Date() for initial date; considering server date drift (2026-08-29 Asia/Makassar), consider seeding from a lightweight /api/server-time endpoint or availability response to align with bookable data window (non-blocking)."
+  ],
+  "updated_files": ["/app/backend/tests/test_calendar_and_history.py (new)"],
+  "success_rate": {"backend": "100% (15/15)", "frontend": "~90% (admin verified end-to-end; Reservasi step-3 plate-history-card not visually validated but code + API confirmed)"},
+  "test_credentials": "admin@aldimotor.com / admin123 (worked)",
+  "seed_data_creation": "None. Used existing bookings from prior iterations (DD1234TX on 2026-09-02, and Aug 24-25 bookings).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Server date: 2026-08-29 Asia/Makassar. Frontend uses real browser date for initial calendar. Existing bookings: Aug 24 (2 bookings), Aug 25 (6 bookings), Sep 2 (4 bookings with plate DD1234TX, Servis Berat 2h at 08:00). Reservasi Step-2 uses a Popover-triggered rdp-day-picker via 'Pilih tanggal' button; to advance in Playwright automation, click the trigger button precisely (not just text), wait for popover, then click enabled rdp day; some months may need next-month navigation. /api/customer/history is PUBLIC (no auth). /api/admin/calendar/* and /api/admin/bookings?plate= require auth.",
+  "rca of the issue": "N/A — no bugs found in scope of this review."
+}
