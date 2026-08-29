@@ -1,0 +1,32 @@
+{
+  "summary": "Backend testing of monthly PDF report + service/booking price features. Wrote pytest suite (12 tests) covering: services GET has price field with seeded values, PATCH /api/admin/services/{id} price update + auth guard, booking creation inheriting service price, PATCH /api/admin/bookings/{id} price update, monthly JSON report (auth required, invalid month=400, structure/period label 'Agustus 2026'), monthly PDF (401 without auth, works with Bearer header, works with ?token= query), and end-to-end revenue calculation (Selesai counted in revenue_completed & revenue_total; Dibatalkan excluded from both). 11/12 passed. Single failure is a spec deviation in _monthly_data() — by_status dict does NOT include zero-count status keys.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/admin/reports/monthly", "issue": "by_status only contains statuses that have >=1 booking. Spec (and PDF renderer at line 757 which iterates all 5) requires all 5 status keys ('Menunggu Konfirmasi','Dikonfirmasi','Sedang Diproses','Selesai','Dibatalkan') to be present even when count=0. Fix in _monthly_data() (server.py ~L648): initialize by_status = {s: 0 for s in ALL_STATUSES} before the loop."}
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_monthly_report.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "In server.py _monthly_data(), pre-seed by_status with all 5 status keys set to 0 so JSON response always has full status breakdown (matches PDF rendering behavior and review-spec)."
+  ],
+  "critical_code_review_comments": [
+    "_monthly_data by_status/by_service use dict-accumulator without pre-seeding known keys — inconsistent between JSON API (only present statuses) and PDF renderer (iterates fixed 5). Consistency fix recommended.",
+    "monthly_report_pdf auth flow: manually calls get_current_user(request) and on failure attempts JWT decode from ?token=. Works, but pattern duplicates logic and could be refactored into a shared dependency for reuse on any future download endpoint.",
+    "Booking price is snapshotted at creation from service.price (good — historical accuracy preserved even if service price later changes). PATCH allows admin to override. Rounding uses float; consider Decimal for currency later, but not blocking.",
+    "Server currency formatter _fmt_rupiah correctly uses Indonesian thousand-separator ('.') — verified visually."
+  ],
+  "updated_files": ["/app/backend/tests/test_monthly_report.py (new)"],
+  "success_rate": {"backend": "91.6% (11/12)", "frontend": "not tested (per request)"},
+  "test_credentials": "admin@aldimotor.com / admin123 (worked)",
+  "seed_data_creation": "Created 4 TEST_ bookings in Sept 2026 (dates 2026-09-02 x2 and 2026-09-03 x2). Two on 09-03 progressed to Selesai/Dibatalkan for revenue check; the two on 09-02 left in 'Menunggu Konfirmasi'. Plate numbers DD1234TX, DD9990RV, DD9991RV. Customer name prefix TEST_. Previous iteration's Aug 2026 bookings remain.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Server date is 2026-08-29 Asia/Makassar; bookable window is 2026-08-30..2026-09-05, with Sundays closed. Availability endpoint returns slots with keys 'time' and 'available' (not 'start_time'/'available_count'). POST /api/bookings returns {booking, wa_customer_link, wa_admin_link} — unwrap 'booking'. Admin PATCH /api/admin/bookings/{id} status transitions must be sequential: Menunggu Konfirmasi → Dikonfirmasi → Sedang Diproses → Selesai (verified). PDF endpoint auth accepts both Bearer header and ?token= query param.",
+  "rca of the issue": "by_status missing 'Sedang Diproses' in August 2026 report: current August data has bookings only in statuses Menunggu Konfirmasi (2 from iter1) + Selesai + Dibatalkan (from iter2). _monthly_data uses `by_status[b['status']] = by_status.get(...) + 1`, so unseen statuses ('Sedang Diproses','Dikonfirmasi') are absent from the dict. PDF section table (server.py L757) already iterates ALL 5 statuses when rendering, so PDF is fine, but JSON response is inconsistent. Fix: pre-initialize `by_status = {s: 0 for s in ['Menunggu Konfirmasi','Dikonfirmasi','Sedang Diproses','Selesai','Dibatalkan']}` (and similarly consider by_service if a canonical service list should always appear)."
+}

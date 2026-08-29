@@ -11,10 +11,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Wrench, LayoutDashboard, CalendarDays, Users2, Settings, LogOut,
   Loader2, Plus, Trash2, MessageCircle, CheckCircle2, PlayCircle, XCircle, Clock,
+  FileText, Download,
 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { format, addDays } from "date-fns";
+import { API } from "@/lib/apiClient";
+
+const rupiah = (n) => "Rp " + Math.round(Number(n) || 0).toLocaleString("id-ID");
+const MONTHS = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
 
 const STATUSES = ["Menunggu Konfirmasi", "Dikonfirmasi", "Sedang Diproses", "Selesai", "Dibatalkan"];
 const statusColor = {
@@ -51,6 +56,7 @@ export default function Admin() {
               { id: "overview", icon: LayoutDashboard, label: "Dashboard" },
               { id: "bookings", icon: CalendarDays, label: "Reservasi" },
               { id: "mechanics", icon: Users2, label: "Mekanik" },
+              { id: "reports", icon: FileText, label: "Laporan" },
               { id: "settings", icon: Settings, label: "Pengaturan" },
             ].map((it) => (
               <button
@@ -82,10 +88,11 @@ export default function Admin() {
           {/* Mobile tab bar */}
           <div className="md:hidden border-b border-slate-200 bg-white px-4 py-2">
             <Tabs value={tab} onValueChange={setTab}>
-              <TabsList className="grid w-full grid-cols-4">
+              <TabsList className="grid w-full grid-cols-5">
                 <TabsTrigger value="overview">Home</TabsTrigger>
                 <TabsTrigger value="bookings">Reservasi</TabsTrigger>
                 <TabsTrigger value="mechanics">Mekanik</TabsTrigger>
+                <TabsTrigger value="reports">Laporan</TabsTrigger>
                 <TabsTrigger value="settings">Setting</TabsTrigger>
               </TabsList>
             </Tabs>
@@ -95,6 +102,7 @@ export default function Admin() {
             {tab === "overview" && <Overview />}
             {tab === "bookings" && <Bookings />}
             {tab === "mechanics" && <Mechanics />}
+            {tab === "reports" && <Reports />}
             {tab === "settings" && <SettingsPanel />}
           </div>
         </main>
@@ -176,6 +184,13 @@ function Bookings() {
       load();
     } catch (e) { toast.error(formatApiError(e)); }
   };
+  const updatePrice = async (id, price) => {
+    try {
+      await api.patch(`/admin/bookings/${id}`, { price });
+      toast.success("Harga diperbarui");
+      load();
+    } catch (e) { toast.error(formatApiError(e)); }
+  };
 
   return (
     <div className="space-y-4" data-testid="admin-bookings">
@@ -214,6 +229,9 @@ function Bookings() {
                   </div>
                   <div className="mt-1 text-sm text-slate-500">
                     {b.service_name} · {b.booking_date} · {b.start_time}–{b.end_time} · {b.mechanic_name}
+                  </div>
+                  <div className="mt-1 text-sm font-semibold text-slate-900">
+                    Harga: {rupiah(b.price)}
                   </div>
                   <div className="mt-2 text-xs text-slate-500">Keluhan: {b.complaint}</div>
                 </div>
@@ -281,6 +299,15 @@ function Bookings() {
                       }}
                     />
                   )}
+                  <Input
+                    type="number" min="0" step="1000" defaultValue={b.price || 0}
+                    className="w-28" placeholder="Harga"
+                    data-testid={`price-input-${b.booking_number}`}
+                    onBlur={(e) => {
+                      const v = parseFloat(e.target.value);
+                      if (!isNaN(v) && v !== (b.price || 0)) updatePrice(b.id, v);
+                    }}
+                  />
                   <a href={`https://wa.me/${b.whatsapp}`} target="_blank" rel="noreferrer">
                     <Button variant="outline" size="icon" data-testid={`wa-btn-${b.booking_number}`}><MessageCircle className="h-4 w-4" /></Button>
                   </a>
@@ -368,10 +395,10 @@ function SettingsPanel() {
       toast.success("Jam operasional disimpan");
     } catch (e) { toast.error(formatApiError(e)); }
   };
-  const saveService = async (s, duration) => {
+  const saveService = async (s, patch) => {
     try {
-      await api.patch(`/admin/services/${s.id}`, { duration_hours: parseFloat(duration) });
-      toast.success(`Durasi ${s.name} diperbarui`);
+      await api.patch(`/admin/services/${s.id}`, patch);
+      toast.success(`${s.name} diperbarui`);
       load();
     } catch (e) { toast.error(formatApiError(e)); }
   };
@@ -406,20 +433,35 @@ function SettingsPanel() {
         <h3 className="font-display text-lg font-semibold">Durasi Layanan</h3>
         <div className="mt-4 space-y-3">
           {services.map((s) => (
-            <div key={s.id} className="flex items-center justify-between gap-3">
-              <div>
+            <div key={s.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-slate-200 p-3">
+              <div className="min-w-0 flex-1">
                 <div className="font-medium">{s.name}</div>
                 <div className="text-xs text-slate-500">{s.description}</div>
               </div>
               <div className="flex items-center gap-2">
-                <Input type="number" min="0.5" step="0.5" defaultValue={s.duration_hours} className="w-24"
-                  onBlur={(e) => {
-                    const v = parseFloat(e.target.value);
-                    if (v && v !== s.duration_hours) saveService(s, v);
-                  }}
-                  data-testid={`duration-${s.code}`}
-                />
-                <span className="text-sm text-slate-500">jam</span>
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Durasi</div>
+                  <div className="flex items-center gap-1">
+                    <Input type="number" min="0.5" step="0.5" defaultValue={s.duration_hours} className="w-20"
+                      onBlur={(e) => {
+                        const v = parseFloat(e.target.value);
+                        if (v && v !== s.duration_hours) saveService(s, { duration_hours: v });
+                      }}
+                      data-testid={`duration-${s.code}`}
+                    />
+                    <span className="text-xs text-slate-500">jam</span>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Harga</div>
+                  <Input type="number" min="0" step="1000" defaultValue={s.price || 0} className="w-32"
+                    onBlur={(e) => {
+                      const v = parseFloat(e.target.value);
+                      if (!isNaN(v) && v !== (s.price || 0)) saveService(s, { price: v });
+                    }}
+                    data-testid={`price-${s.code}`}
+                  />
+                </div>
               </div>
             </div>
           ))}
@@ -445,6 +487,149 @@ function SettingsPanel() {
           ))}
         </div>
       </Card>
+    </div>
+  );
+}
+
+function Reports() {
+  const now = new Date();
+  const [year, setYear] = useState(now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth() + 1);
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const r = await api.get(`/admin/reports/monthly?year=${year}&month=${month}`);
+      setData(r.data);
+    } catch (e) { toast.error(formatApiError(e)); }
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [year, month]);
+
+  const downloadPdf = () => {
+    const token = localStorage.getItem("aldi_token");
+    const url = `${API}/admin/reports/monthly.pdf?year=${year}&month=${month}&token=${encodeURIComponent(token)}`;
+    window.open(url, "_blank");
+  };
+
+  const years = [];
+  for (let y = now.getFullYear() - 2; y <= now.getFullYear() + 1; y++) years.push(y);
+
+  return (
+    <div className="space-y-6" data-testid="admin-reports">
+      <Card className="border-slate-200 p-5">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <div className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">Laporan Bulanan</div>
+            <h3 className="font-display text-2xl font-semibold mt-1">
+              {MONTHS[month - 1]} {year}
+            </h3>
+          </div>
+          <div className="flex flex-wrap items-end gap-3">
+            <div>
+              <Label className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">Bulan</Label>
+              <Select value={String(month)} onValueChange={(v) => setMonth(parseInt(v))}>
+                <SelectTrigger className="mt-2 w-40" data-testid="report-month"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {MONTHS.map((m, i) => <SelectItem key={i} value={String(i + 1)}>{m}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">Tahun</Label>
+              <Select value={String(year)} onValueChange={(v) => setYear(parseInt(v))}>
+                <SelectTrigger className="mt-2 w-28" data-testid="report-year"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {years.map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              onClick={downloadPdf}
+              data-testid="download-pdf-btn"
+              className="rounded-full bg-blue-600 hover:bg-blue-700 transition-colors"
+            >
+              <Download className="mr-2 h-4 w-4" /> Unduh PDF
+            </Button>
+          </div>
+        </div>
+      </Card>
+
+      {loading || !data ? <Loader /> : (
+        <>
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+            <StatCard testid="report-total" label="Total Reservasi" value={data.total} />
+            <StatCard testid="report-selesai" label="Selesai" value={data.by_status["Selesai"] || 0} />
+            <StatCard label="Pendapatan Selesai" value={rupiah(data.revenue_completed)} />
+            <StatCard label="Pendapatan Aktif" value={rupiah(data.revenue_total)} />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Card className="border-slate-200 p-5">
+              <h3 className="font-display text-base font-semibold">Rekap Status</h3>
+              <div className="mt-3 space-y-2 text-sm">
+                {["Menunggu Konfirmasi", "Dikonfirmasi", "Sedang Diproses", "Selesai", "Dibatalkan"].map((s) => (
+                  <div key={s} className="flex justify-between">
+                    <span className="text-slate-600">{s}</span>
+                    <Badge className={statusColor[s]}>{data.by_status[s] || 0}</Badge>
+                  </div>
+                ))}
+              </div>
+            </Card>
+            <Card className="border-slate-200 p-5">
+              <h3 className="font-display text-base font-semibold">Rekap Jenis Servis</h3>
+              <div className="mt-3 space-y-2 text-sm">
+                {Object.keys(data.by_service).length === 0 && (
+                  <div className="text-slate-500">Tidak ada data.</div>
+                )}
+                {Object.entries(data.by_service).map(([k, v]) => (
+                  <div key={k} className="flex justify-between">
+                    <span className="text-slate-600">{k}</span>
+                    <span className="font-semibold">{v}</span>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </div>
+
+          <Card className="border-slate-200 p-5">
+            <h3 className="font-display text-base font-semibold">Detail Reservasi</h3>
+            {data.bookings.length === 0 ? (
+              <p className="mt-3 text-sm text-slate-500">Tidak ada reservasi pada periode ini.</p>
+            ) : (
+              <div className="mt-3 overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs font-bold uppercase tracking-wider text-slate-500">
+                      <th className="py-2 pr-3">No Reservasi</th>
+                      <th className="py-2 pr-3">Tanggal</th>
+                      <th className="py-2 pr-3">Customer</th>
+                      <th className="py-2 pr-3">Servis</th>
+                      <th className="py-2 pr-3">Status</th>
+                      <th className="py-2 pr-3 text-right">Harga</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.bookings.map((b) => (
+                      <tr key={b.id} className="border-t border-slate-100">
+                        <td className="py-2 pr-3 font-medium text-blue-600">{b.booking_number}</td>
+                        <td className="py-2 pr-3">{b.booking_date} · {b.start_time}</td>
+                        <td className="py-2 pr-3">{b.customer_name}</td>
+                        <td className="py-2 pr-3">{b.service_name}</td>
+                        <td className="py-2 pr-3"><Badge className={statusColor[b.status]}>{b.status}</Badge></td>
+                        <td className="py-2 pr-3 text-right font-medium">{rupiah(b.price)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+        </>
+      )}
     </div>
   );
 }
