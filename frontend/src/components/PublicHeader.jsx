@@ -1,7 +1,8 @@
 import { Link, useLocation } from "react-router-dom";
 import { useState } from "react";
-import { Menu, X, Wrench } from "lucide-react";
+import { Menu, X, Wrench, LayoutDashboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/context/AuthContext";
 
 const navItems = [
   { label: "Beranda", href: "/#beranda" },
@@ -13,6 +14,9 @@ const navItems = [
 export default function PublicHeader() {
   const [open, setOpen] = useState(false);
   const location = useLocation();
+  const { user } = useAuth();
+  const isAdminAuthed = !!user;
+  const dashboardHref = isAdminAuthed ? "/admin" : "/admin/login";
 
   return (
     <header
@@ -40,6 +44,14 @@ export default function PublicHeader() {
               {it.label}
             </a>
           ))}
+          <Link
+            to={dashboardHref}
+            data-testid="nav-dashboard"
+            className="flex items-center gap-1.5 text-sm font-medium text-slate-700 transition-colors hover:text-blue-600"
+          >
+            <LayoutDashboard strokeWidth={1.5} className="h-4 w-4" />
+            Dashboard
+          </Link>
         </nav>
 
         <div className="hidden md:block">
@@ -76,6 +88,15 @@ export default function PublicHeader() {
                 {it.label}
               </a>
             ))}
+            <Link
+              to={dashboardHref}
+              onClick={() => setOpen(false)}
+              data-testid="mobile-nav-dashboard"
+              className="flex items-center gap-2 text-sm font-medium text-slate-700"
+            >
+              <LayoutDashboard strokeWidth={1.5} className="h-4 w-4" />
+              Dashboard {isAdminAuthed ? "" : "(Admin)"}
+            </Link>
             <Link to="/reservasi" onClick={() => setOpen(false)}>
               <Button data-testid="mobile-reservasi-btn" className="w-full rounded-full bg-blue-600 hover:bg-blue-700">
                 Reservasi Sekarang
