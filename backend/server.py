@@ -24,8 +24,8 @@ from pydantic import BaseModel, Field, ConfigDict
 MONGO_URL = os.environ["MONGO_URL"]
 DB_NAME = os.environ["DB_NAME"]
 JWT_SECRET = os.environ["JWT_SECRET"]
-ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "admin@aldimotor.com")
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin123")
+ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "adminaldimotor")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "aldimotorjaya")
 WORKSHOP_WHATSAPP = os.environ.get("WORKSHOP_WHATSAPP", "6281234567890")
 WORKSHOP_NAME = os.environ.get("WORKSHOP_NAME", "ALDI MOTOR")
 
@@ -49,9 +49,9 @@ def hash_password(pw: str) -> str:
 def verify_password(pw: str, hashed: str) -> bool:
     return bcrypt.checkpw(pw.encode(), hashed.encode())
 
-def create_access_token(user_id: str, email: str) -> str:
+def create_access_token(user_id: str, username: str) -> str:
     payload = {
-        "sub": user_id, "email": email,
+        "sub": user_id, "username": username,
         "exp": datetime.now(timezone.utc) + timedelta(days=7),
         "type": "access",
     }
@@ -95,7 +95,7 @@ def today_local() -> date:
 
 # ----------------- Models -----------------
 class LoginReq(BaseModel):
-    email: str
+    username: str
     password: str
 
 class MechanicIn(BaseModel):
@@ -137,20 +137,27 @@ class BookingUpdate(BaseModel):
 
 # ----------------- Seed / Init -----------------
 async def seed_data():
-    # Admin user
-    if not await db.users.find_one({"email": ADMIN_EMAIL}):
+    # Admin user (login via username)
+    # Migrate: delete any old admin whose username does NOT match ADMIN_USERNAME (e.g. email-based admins)
+    await db.users.delete_many({
+        "role": "admin",
+        "$or": [
+            {"username": {"$ne": ADMIN_USERNAME}},
+            {"username": {"$exists": False}},
+        ],
+    })
+    existing = await db.users.find_one({"username": ADMIN_USERNAME})
+    if existing is None:
         await db.users.insert_one({
             "id": str(uuid.uuid4()),
-            "email": ADMIN_EMAIL,
+            "username": ADMIN_USERNAME,
             "password_hash": hash_password(ADMIN_PASSWORD),
             "name": "Admin",
             "role": "admin",
             "created_at": datetime.now(timezone.utc).isoformat(),
         })
-    else:
-        existing = await db.users.find_one({"email": ADMIN_EMAIL})
-        if not verify_password(ADMIN_PASSWORD, existing["password_hash"]):
-            await db.users.update_one({"email": ADMIN_EMAIL}, {"$set": {"password_hash": hash_password(ADMIN_PASSWORD)}})
+    elif not verify_password(ADMIN_PASSWORD, existing["password_hash"]):
+        await db.users.update_one({"username": ADMIN_USERNAME}, {"$set": {"password_hash": hash_password(ADMIN_PASSWORD)}})
 
     # Services
     default_services = [
@@ -194,7 +201,12 @@ async def seed_data():
 
 @app.on_event("startup")
 async def startup():
-    await db.users.create_index("email", unique=True)
+    # Drop legacy email index if present, ensure username index
+    try:
+        await db.users.drop_index("email_1")
+    except Exception:
+        pass
+    await db.users.create_index("username", unique=True)
     await db.bookings.create_index([("booking_date", 1), ("mechanic_id", 1)])
     await seed_data()
     logger.info("ALDI MOTOR API started")
@@ -208,17 +220,17 @@ async def shutdown():
 # ----------------- Auth -----------------
 @api.post("/auth/login")
 async def login(body: LoginReq, response: Response):
-    user = await db.users.find_one({"email": body.email.lower().strip()})
+    user = await db.users.find_one({"username": body.username.lower().strip()})
     if not user or not verify_password(body.password, user["password_hash"]):
-        raise HTTPException(status_code=401, detail="Email atau password salah")
-    token = create_access_token(user["id"], user["email"])
+        raise HTTPException(status_code=401, detail="Username atau password salah")
+    token = create_access_token(user["id"], user["username"])
     response.set_cookie(
         key="access_token", value=token, httponly=True, secure=True,
         samesite="none", max_age=7 * 24 * 3600, path="/",
     )
     return {
         "token": token,
-        "user": {"id": user["id"], "email": user["email"], "name": user["name"], "role": user["role"]},
+        "user": {"id": user["id"], "username": user["username"], "name": user["name"], "role": user["role"]},
     }
 
 

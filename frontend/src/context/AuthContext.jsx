@@ -23,9 +23,9 @@ export function AuthProvider({ children }) {
       .finally(() => setLoading(false));
   }, []);
 
-  const login = async (email, password) => {
+  const login = async (username, password) => {
     try {
-      const r = await api.post("/auth/login", { email, password });
+      const r = await api.post("/auth/login", { username, password });
       localStorage.setItem("aldi_token", r.data.token);
       setUser(r.data.user);
       return { ok: true };
