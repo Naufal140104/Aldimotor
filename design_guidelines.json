@@ -1,0 +1,116 @@
+{
+  "project_name": "ALDI MOTOR",
+  "theme_strategy": {
+    "primary_theme": "light",
+    "archetype": "The Performance Pro mixed with Swiss & High-Contrast",
+    "vibe": "Premium, engineered, precise, fast. It should feel like a high-end service center or a Formula 1 pit stop, elevating the traditional 'bengkel' experience.",
+    "rationale": "Motorcycle owners seek trust and efficiency. A crisp light theme with stark blue contrast provides clarity (trust), while neon-electric blue interactions imply speed (tanpa antre)."
+  },
+  "typography": {
+    "heading_font": "Outfit",
+    "body_font": "Manrope",
+    "scale_rules": {
+      "h1": "text-5xl lg:text-6xl tracking-tighter font-bold",
+      "h2": "text-3xl lg:text-4xl tracking-tight font-semibold",
+      "h3": "text-xl lg:text-2xl font-medium",
+      "body": "text-base leading-relaxed",
+      "labels": "text-xs tracking-[0.2em] uppercase font-bold text-slate-500"
+    },
+    "instructions": "NEVER use Inter for headings. Use fluid typography and tight letter spacing on large text."
+  },
+  "colors": {
+    "background": "#F8FAFC",
+    "surface": "#FFFFFF",
+    "structural_dark": "#0A192F",
+    "primary_brand": "#0052FF",
+    "primary_hover": "#0040CC",
+    "text_main": "#0F172A",
+    "text_muted": "#64748B",
+    "border": "#E2E8F0",
+    "status": {
+      "available": "#10B981",
+      "almost_full": "#F59E0B",
+      "full": "#EF4444"
+    }
+  },
+  "spacing_and_layout": {
+    "philosophy": "Generous Spacing (p-8 to p-12) for the landing page to create breathing room. Dense, high-utilization grid (gap-4, p-4) for the Admin Dashboard.",
+    "container": "Max width 1280px (max-w-7xl) for standard pages.",
+    "grid_system": {
+      "marketing": "Mode A (Tetris Grid) - asymmetric layouts, overlap, grid-cols-1 md:grid-cols-12 with wide gaps.",
+      "dashboard": "Mode B (High Density Grid) - grid-cols-1 md:grid-cols-4 for stats, strict hierarchy."
+    }
+  },
+  "visual_enhancers": {
+    "header": "Crystal Glassmorphism: backdrop-blur-xl bg-white/70, border-b border-slate-200. Must always remain readable.",
+    "dashboard_cards": "Flat solid background, 1px subtle border (border-slate-200), NO default shadow. On hover: slight lift (-translate-y-1) and shadow-lg.",
+    "form_elements": "Sharp or slightly rounded corners (rounded-md max). High contrast focus states (focus:ring-2 focus:ring-blue-500).",
+    "icons": "lucide-react with strokeWidth={1.5} for a precise, engineered look."
+  },
+  "images": {
+    "hero_background": {
+      "url": "https://images.unsplash.com/photo-1581858544302-c40e2254ff87?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Njl8MHwxfHNlYXJjaHwzfHxtb3RvcmN5Y2xlJTIwd29ya3Nob3AlMjBjbGVhbnxlbnwwfHx8fDE3ODc0NTgyMzV8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Black and silver cruiser motorcycle in a clean workshop",
+      "placement": "Landing Page Hero Section (Split screen or background with bg-slate-900/40 overlay)"
+    },
+    "services_bg": {
+      "url": "https://images.unsplash.com/photo-1636761358757-0a616eb9e17e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1ODR8MHwxfHNlYXJjaHwyfHxtb3RvcmN5Y2xlJTIwbWVjaGFuaWMlMjBtb2Rlcm58ZW58MHx8fHwxNzg3NDU4MjM1fDA&ixlib=rb-4.1.0&q=85",
+      "description": "Mechanic working on a motorcycle",
+      "placement": "Cara Reservasi or About Us section"
+    },
+    "engine_detail": {
+      "url": "https://images.unsplash.com/photo-1534755563369-ad37931ac77b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzV8MHwxfHNlYXJjaHwxfHxtb3RvcmN5Y2xlJTIwZW5naW5lfGVufDB8fHx8MTc4NzQ1ODIzNXww&ixlib=rb-4.1.0&q=85",
+      "description": "Close up engine details",
+      "placement": "Service Selection Cards (Overhaul or Heavy Service representation)"
+    }
+  },
+  "components": {
+    "buttons": "Pill-shaped or rounded-md. Primary: bg-blue-600 text-white hover:bg-blue-700. Secondary: bg-slate-100 text-slate-900 hover:bg-slate-200. MUST have transition-colors duration-200.",
+    "reservation_stepper": "Horizontal step indicator showing 1. Layanan -> 2. Jadwal -> 3. Data -> 4. Konfirmasi. Active step in brand blue, inactive in slate-300.",
+    "service_cards": "Selectable cards (radio group logic) with hover border-blue-500 and ring when active. Display duration (1jam, 2jam, etc) prominently.",
+    "date_time_picker": "Shadcn Calendar for dates. Disable Sundays and dynamic holidays. Time slots displayed as a grid-cols-3 or 4 of buttons (08:00 - 16:00). Color-coded capacity indicators.",
+    "toasts": "Use 'sonner' for success/error notifications (e.g., booking success or admin update)."
+  },
+  "page_blueprints": {
+    "landing_page": {
+      "header": "Logo 'ALDI MOTOR', Links: Beranda, Layanan, Cara Reservasi, Kontak, CTA: 'Reservasi Sekarang'. Sticky, glassmorphism.",
+      "hero": "Headline: 'Servis Motor Tanpa Antre'. Subheadline: 'Booking jadwal servis motor Anda sekarang. Proses cepat, mekanik handal, tanpa perlu membuang waktu.' CTA 'Buat Reservasi'.",
+      "layanan": "4 service cards: Servis Ringan (1 jam), Servis Berat (2 jam), Overhaul (4 jam), Request Customer.",
+      "cara_reservasi": "3-4 visual steps illustrating the ease of booking online and arriving at the shop."
+    },
+    "booking_flow": {
+      "step_1": "Select Service. Large clickable area cards.",
+      "step_2": "Select Date & Time. Calendar left, Time slots right. Slots calculate remaining capacity based on 5 mechanics max.",
+      "step_3": "Customer Data Form. Name, Phone (WhatsApp), Motorcycle Model, Plate Number. Inline validation.",
+      "step_4": "Confirmation. Summary of selection. 'Konfirmasi & Lanjut ke WhatsApp' button generates a WA link."
+    },
+    "admin_dashboard": {
+      "layout": "Sidebar navigation (Overview, Calendar, Mechanics, Settings). Topbar with admin profile.",
+      "overview": "Stats cards: Today's Bookings, Available Slots, Active Mechanics.",
+      "calendar": "Full view of reservations. Click to view details.",
+      "mechanics_crud": "Table view of 5 mechanics. Add/Edit/Delete/Status.",
+      "settings": "Form to manage operational hours (default 08:00-16:00), holidays, and service durations."
+    }
+  },
+  "accessibility_and_motion": {
+    "motion": "Use Framer Motion for step transitions in booking form (slide in/out). Hover micro-interactions on all buttons and cards.",
+    "accessibility": "Ensure all form inputs have labels. Minimum 4.5:1 contrast for text. All interactive elements MUST include a data-testid attribute (e.g., data-testid='book-now-button')."
+  },
+  "instructions_to_main_agent": {
+    "1": "Use React, Tailwind CSS, and Shadcn UI. Do NOT build datepickers or complex modals from scratch; customize Shadcn.",
+    "2": "For the booking logic, mock the database interactions using a robust local state or contextual mock API (since full backend isn't specified, but state must WORK accurately for demo). Manage 5 mechanics' capacity strictly: if 5 mechanics are booked for 10:00 AM, the slot is 'Penuh'.",
+    "3": "Generate the WhatsApp link using: `https://wa.me/NUMBER?text=ENCODED_MESSAGE`. The number can be a dummy number, but the UX must be complete.",
+    "4": "Apply font classes to the body or main layout wrapper to ensure Outfit and Manrope are used correctly.",
+    "5": "Do NOT apply `transition: all`. Use specific transitions like `transition-colors`, `transition-transform`."
+  },
+  "universal_guidelines_for_main_agent": [
+    "You tend to converge toward generic, 'on distribution' outputs. Avoid this: make creative, distinctive frontends that surprise and delight.",
+    "Create depth through layered design elements with z-index hierarchy and glass-morphism.",
+    "You MUST NOT center align the app container, i.e., do not add `.App { text-align: center; }`.",
+    "Every interaction needs micro-animations - hover states, transitions, entrance animations. Static = dead.",
+    "Use sonner for toasts. They are located in `/app/src/components/ui/sonner.tsx`.",
+    "All interactive and key informational elements MUST include `data-testid` attribute (e.g., `data-testid=\"admin-login-button\"`).",
+    "Use 2-3x more spacing than feels comfortable. Cramped designs look cheap.",
+    "Never use AI assistant Emoji characters like 🤖🧠💭💡🔮🎯 etc for icons."
+  ]
+}
