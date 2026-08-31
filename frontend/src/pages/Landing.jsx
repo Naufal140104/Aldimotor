@@ -48,7 +48,7 @@ export default function Landing() {
               <span className="text-blue-400">Tanpa Antre.</span>
             </h1>
             <p className="mt-6 max-w-xl text-lg text-slate-200 md:text-xl">
-              Atur jadwal servis motor Anda dengan mudah dan datang sesuai waktu reservasi. Cepat, terjadwal, tanpa buang waktu.
+              Menjadi bengkel motor yang unggul dan terpercaya dalam memberikan layanan perawatan dan perbaikan kendaraan, dengan mengutamakan kualitas, kejujuran, serta kepuasan pelanggan sebagai prioritas utama.
             </p>
             <div className="mt-10 flex flex-wrap items-center gap-4">
               <Link to="/reservasi">
