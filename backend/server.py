@@ -490,18 +490,18 @@ async def create_booking(body: BookingCreate):
     await db.bookings.insert_one(booking.copy())
     booking.pop("_id", None)
 
-    # WA link (customer receives confirmation via their own WA if they click)
+    # WA link (customer sends confirmation TO the workshop's WhatsApp)
     customer_msg = (
-        f"Halo {booking['customer_name']},%0A%0A"
-        f"Reservasi servis motor Anda di *{WORKSHOP_NAME}* berhasil dibuat.%0A%0A"
+        f"Halo *{WORKSHOP_NAME}*,%0A%0A"
+        f"Saya baru saja membuat reservasi servis motor. Berikut detailnya:%0A%0A"
+        f"Nama: {booking['customer_name']}%0A"
         f"Nomor Reservasi: *{booking['booking_number']}*%0A"
         f"Jenis Servis: {booking['service_name']}%0A"
         f"Tanggal: {booking['booking_date']}%0A"
         f"Jam: {booking['start_time']}%0A"
         f"Nomor Polisi: {booking['plate_number']}%0A"
-        f"Keluhan: {booking['complaint']}%0A"
-        f"Status: {booking['status']}%0A%0A"
-        f"Mohon datang sesuai jadwal reservasi. Terima kasih."
+        f"Keluhan: {booking['complaint']}%0A%0A"
+        f"Mohon konfirmasi reservasi saya. Terima kasih."
     )
     admin_msg = (
         f"*Reservasi Baru!*%0A%0A"
@@ -518,7 +518,10 @@ async def create_booking(body: BookingCreate):
 
     return {
         "booking": booking,
-        "wa_customer_link": f"https://wa.me/{wa}?text={customer_msg}",
+        "workshop_whatsapp": WORKSHOP_WHATSAPP,
+        # Primary link: customer sends confirmation to the workshop's WA
+        "wa_customer_link": f"https://wa.me/{WORKSHOP_WHATSAPP}?text={customer_msg}",
+        # Kept for admin internal use if needed
         "wa_admin_link": f"https://wa.me/{WORKSHOP_WHATSAPP}?text={admin_msg}",
     }
 

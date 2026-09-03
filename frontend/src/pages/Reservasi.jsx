@@ -192,14 +192,17 @@ export default function Reservasi() {
             <div className="mt-6 flex flex-col gap-3">
               <a href={result.wa_customer_link} target="_blank" rel="noreferrer">
                 <Button data-testid="wa-customer-btn" className="w-full rounded-full bg-green-600 hover:bg-green-700 transition-colors">
-                  <MessageCircle className="mr-2 h-4 w-4" /> Kirim Konfirmasi ke WhatsApp Saya
+                  <MessageCircle className="mr-2 h-4 w-4" /> Kirim Konfirmasi ke WhatsApp Bengkel
                 </Button>
               </a>
-              <a href={result.wa_admin_link} target="_blank" rel="noreferrer">
-                <Button variant="outline" data-testid="wa-admin-btn" className="w-full rounded-full">
-                  Notifikasi ke Bengkel
-                </Button>
-              </a>
+              {result.workshop_whatsapp && (
+                <p className="text-center text-xs text-slate-500">
+                  Konfirmasi akan dikirim ke nomor bengkel:{" "}
+                  <span className="font-semibold text-slate-700">
+                    +{result.workshop_whatsapp}
+                  </span>
+                </p>
+              )}
               <Link to="/">
                 <Button variant="ghost" className="w-full">Kembali ke Beranda</Button>
               </Link>
