@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import PublicHeader from "@/components/PublicHeader";
 import { Button } from "@/components/ui/button";
@@ -12,10 +12,11 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { toast } from "sonner";
 import {
   Wrench, Cog, Settings2, MessageSquareText, ChevronLeft, ChevronRight,
-  Check, CalendarIcon, Loader2, MessageCircle, ArrowRight,
+  Check, CalendarIcon, Loader2, MessageCircle, ArrowRight, Download,
 } from "lucide-react";
 import api, { formatApiError } from "@/lib/apiClient";
 import { format, addDays } from "date-fns";
+import html2canvas from "html2canvas";
 
 const serviceIcons = {
   ringan: Wrench, berat: Cog, overhaul: Settings2, request: MessageSquareText,
@@ -174,40 +175,11 @@ export default function Reservasi() {
             </div>
           </div>
           <h1 className="text-center font-display text-3xl font-bold" data-testid="success-title">Reservasi Berhasil!</h1>
-          <p className="mt-3 text-center text-slate-600">Silakan simpan nomor reservasi Anda.</p>
-          <Card className="mt-8 border-slate-200 p-6">
-            <div className="text-center">
-              <div className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">Nomor Reservasi</div>
-              <div className="mt-2 font-display text-2xl font-bold text-blue-600" data-testid="booking-number">{b.booking_number}</div>
-            </div>
-            <div className="mt-6 space-y-2 text-sm">
-              <Row k="Nama" v={b.customer_name} />
-              <Row k="Jenis Servis" v={b.service_name} />
-              <Row k="Tanggal" v={b.booking_date} />
-              <Row k="Jam" v={`${b.start_time} - ${b.end_time}`} />
-              <Row k="Mekanik" v={b.mechanic_name} />
-              <Row k="Nomor Polisi" v={b.plate_number} />
-              <Row k="Status" v={b.status} />
-            </div>
-            <div className="mt-6 flex flex-col gap-3">
-              <a href={result.wa_customer_link} target="_blank" rel="noreferrer">
-                <Button data-testid="wa-customer-btn" className="w-full rounded-full bg-green-600 hover:bg-green-700 transition-colors">
-                  <MessageCircle className="mr-2 h-4 w-4" /> Kirim Konfirmasi ke WhatsApp Bengkel
-                </Button>
-              </a>
-              {result.workshop_whatsapp && (
-                <p className="text-center text-xs text-slate-500">
-                  Konfirmasi akan dikirim ke nomor bengkel:{" "}
-                  <span className="font-semibold text-slate-700">
-                    +{result.workshop_whatsapp}
-                  </span>
-                </p>
-              )}
-              <Link to="/">
-                <Button variant="ghost" className="w-full">Kembali ke Beranda</Button>
-              </Link>
-            </div>
-          </Card>
+          <p className="mt-3 text-center text-slate-600">Simpan bukti reservasi Anda di bawah ini.</p>
+
+          <ReceiptCard result={result} />
+
+          <ReceiptActions result={result} />
         </div>
       </div>
     );
@@ -498,5 +470,134 @@ function Row({ k, v }) {
       <div className="text-slate-500">{k}</div>
       <div className="text-right font-medium text-slate-900">{v || "-"}</div>
     </div>
+  );
+}
+
+function ReceiptCard({ result }) {
+  const b = result.booking;
+  return (
+    <div
+      id="receipt-card"
+      data-testid="receipt-card"
+      className="mt-8 overflow-hidden rounded-2xl border border-slate-200 bg-white"
+    >
+      {/* Blue header strip */}
+      <div className="bg-gradient-to-r from-[#0A192F] to-blue-600 px-6 py-5 text-white">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="flex h-9 w-9 items-center justify-center rounded-md bg-white/10 backdrop-blur">
+              <Wrench strokeWidth={2} className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="font-display text-lg font-bold leading-tight">ALDI MOTOR</div>
+              <div className="text-[10px] uppercase tracking-[0.2em] text-blue-200">Bukti Reservasi</div>
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="text-[10px] uppercase tracking-wider text-blue-200">Nomor Reservasi</div>
+            <div className="font-display text-base font-bold" data-testid="booking-number">{b.booking_number}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Body */}
+      <div className="p-6">
+        <div className="rounded-lg bg-blue-50 p-4 text-center">
+          <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-700">Jadwal Servis</div>
+          <div className="mt-1 font-display text-lg font-bold text-blue-900">
+            {b.booking_date}
+          </div>
+          <div className="font-display text-2xl font-bold text-blue-900">
+            {b.start_time} — {b.end_time}
+          </div>
+        </div>
+
+        <div className="mt-5 space-y-2 text-sm">
+          <Row k="Nama" v={b.customer_name} />
+          <Row k="Nomor Polisi" v={b.plate_number} />
+          <Row k="Jenis Servis" v={b.service_name} />
+          <Row k="Estimasi Durasi" v={`${b.duration_hours} jam`} />
+          <Row k="Mekanik" v={b.mechanic_name} />
+          <Row k="Status" v={b.status} />
+        </div>
+
+        <div className="mt-4 rounded-md bg-slate-50 p-3 text-xs">
+          <div className="font-bold uppercase tracking-wider text-slate-500">Keluhan</div>
+          <div className="mt-1 italic text-slate-700">"{b.complaint}"</div>
+        </div>
+
+        <div className="mt-5 border-t border-dashed border-slate-200 pt-4 text-center">
+          <div className="text-xs text-slate-500">
+            Mohon tunjukkan bukti ini saat datang ke bengkel.
+          </div>
+          {result.workshop_whatsapp && (
+            <div className="mt-1 text-xs text-slate-500">
+              Info: <span className="font-semibold text-slate-700">+{result.workshop_whatsapp}</span>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ReceiptActions({ result }) {
+  const [saving, setSaving] = useState(false);
+  const b = result.booking;
+
+  const saveAsImage = async () => {
+    const el = document.getElementById("receipt-card");
+    if (!el) return;
+    setSaving(true);
+    try {
+      const canvas = await html2canvas(el, {
+        backgroundColor: "#ffffff",
+        scale: 2,
+        useCORS: true,
+      });
+      const url = canvas.toDataURL("image/png");
+      const link = document.createElement("a");
+      link.download = `Bukti-${b.booking_number}.png`;
+      link.href = url;
+      link.click();
+      toast.success("Bukti reservasi berhasil disimpan");
+    } catch (e) {
+      toast.error("Gagal menyimpan bukti. Silakan screenshot manual.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="mt-6 flex flex-col gap-3">
+        <Button
+          data-testid="save-receipt-btn"
+          onClick={saveAsImage}
+          disabled={saving}
+          variant="outline"
+          className="rounded-full border-blue-300 text-blue-700 hover:bg-blue-50 hover:text-blue-800 transition-colors"
+        >
+          {saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Menyimpan...</> : <><Download className="mr-2 h-4 w-4" /> Simpan Bukti sebagai Gambar</>}
+        </Button>
+
+        <a href={result.wa_customer_link} target="_blank" rel="noreferrer">
+          <Button data-testid="wa-customer-btn" className="w-full rounded-full bg-green-600 hover:bg-green-700 transition-colors">
+            <MessageCircle className="mr-2 h-4 w-4" /> Kirim Konfirmasi ke WhatsApp Bengkel
+          </Button>
+        </a>
+        {result.workshop_whatsapp && (
+          <p className="text-center text-xs text-slate-500">
+            Konfirmasi akan dikirim ke nomor bengkel:{" "}
+            <span className="font-semibold text-slate-700">
+              +{result.workshop_whatsapp}
+            </span>
+          </p>
+        )}
+        <Link to="/">
+          <Button variant="ghost" className="w-full">Kembali ke Beranda</Button>
+        </Link>
+      </div>
+    </>
   );
 }
